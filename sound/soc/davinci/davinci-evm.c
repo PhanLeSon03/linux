@@ -20,9 +20,14 @@
 #include <sound/core.h>
 #include <sound/pcm.h>
 #include <sound/soc.h>
+#include <sound/pcm_params.h>   
 
 #include <asm/dma.h>
 #include <asm/mach-types.h>
+
+ #define STA321MP_AUDIO_FORMAT (SND_SOC_DAIFMT_CBM_CFM | \
+   SND_SOC_DAIFMT_I2S | SND_SOC_DAIFMT_NB_NF)
+  #define STA321MP_BCLK_LRCLK_RATIO 64
 
 struct snd_soc_card_drvdata_davinci {
 	struct clk *mclk;
@@ -54,6 +59,71 @@ static void evm_shutdown(struct snd_pcm_substream *substream)
 		clk_disable_unprepare(drvdata->mclk);
 }
 
+
+static int evm_sta321mp_hw_params(struct snd_pcm_substream *substream,
+                           struct snd_pcm_hw_params *params)
+  {
+          struct snd_soc_pcm_runtime *rtd = substream->private_data;
+          struct snd_soc_dai *codec_dai = rtd->codec_dai;
+          struct snd_soc_dai *cpu_dai = rtd->cpu_dai;
+          struct snd_soc_codec *codec = rtd->codec;
+          struct snd_soc_card *soc_card = rtd->card;
+          struct platform_device *pdev = to_platform_device(soc_card->dev);
+  
+          unsigned int bclk_freq = snd_soc_params_to_bclk(params);
+          unsigned sysclk = ((struct snd_soc_card_drvdata_davinci *)snd_soc_card_get_drvdata(soc_card))->sysclk;
+          int ret = 0;
+  
+          printk("bclk (from params): %d\n", (int)bclk_freq);
+  
+          bclk_freq = 1;
+          switch (params_format(params)) {
+              case SNDRV_PCM_FORMAT_S32_LE:
+              case SNDRV_PCM_FORMAT_S24_LE:
+                  bclk_freq *= 64;
+                  break;
+              case SNDRV_PCM_FORMAT_S24_3LE:
+                  bclk_freq *= 48;
+                  break;
+              case SNDRV_PCM_FORMAT_S16_LE:
+                  bclk_freq *= 32;
+                  break;
+              default:
+                  dev_err(codec->dev, "Unsupported format\n");
+                  return -EINVAL;
+           }
+           bclk_freq *= params_rate(params);
+  
+           printk("sysclk: %d\n", (int)sysclk);
+           printk("bclk: %d\n", (int)bclk_freq);
+  
+           ret = snd_soc_dai_set_clkdiv(cpu_dai, 1, 24000000/bclk_freq);
+           if (ret < 0) {
+               dev_err(&pdev->dev, "can't set CPU DAI clock divider %d\n",
+               ret);
+               return ret;
+           }
+  
+           printk("evm_sta321mp_hw_params: Starting operations.\n");
+  
+          /* set cpu DAI configuration */
+          ret = snd_soc_dai_set_fmt(cpu_dai, STA321MP_AUDIO_FORMAT);
+          if (ret < 0)
+                 return ret;
+  
+          /* set the codec system clock */
+          ret = snd_soc_dai_set_sysclk(codec_dai, 0, 0, SND_SOC_CLOCK_IN);
+          if (ret < 0)
+                  return ret;
+  
+          /*
+          ret = snd_soc_dai_set_sysclk(cpu_dai, 0, 0, SND_SOC_CLOCK_IN);
+          if (ret < 0)
+                  return ret;
+          */
+          return 0;
+ }
+
 static int evm_hw_params(struct snd_pcm_substream *substream,
 			 struct snd_pcm_hw_params *params)
 {
@@ -77,6 +147,13 @@ static int evm_hw_params(struct snd_pcm_substream *substream,
 
 	return 0;
 }
+static struct snd_soc_ops evm_sta321mp_ops = {
+      .startup = evm_startup,
+      .shutdown = evm_shutdown,
+      .hw_params = evm_sta321mp_hw_params,
+  };
+
+
 static int wilink8_bt_hw_params(struct snd_pcm_substream *substream,
 				 struct snd_pcm_hw_params *params)
 {
@@ -221,6 +298,39 @@ static int evm_aic3x_init(struct snd_soc_pcm_runtime *rtd)
 
 	return 0;
 }
+
+  /* Logic for a sta321mp as connected on a beaglebone black */
+  static int evm_sta321mp_init(struct snd_soc_pcm_runtime *rtd)
+  {
+      struct snd_soc_dai *codec_dai = rtd->codec_dai;
+      struct snd_soc_dai *cpu_dai = rtd->cpu_dai;
+      //struct snd_soc_dapm_context *dapm = &codec_dai->dapm;
+  
+  
+      struct snd_soc_card *card = rtd->card;
+      //struct device_node *np = codec_dai->card->dev->of_node;
+      struct device_node *np = card->dev->of_node;
+      int ret;
+  
+      printk("sta321mp: init setting clocks.\n");
+      printk("sta321mp: using cpu %s\n", cpu_dai->name);
+  
+      /* set cpu DAI configuration */
+      ret = snd_soc_dai_set_clkdiv(cpu_dai, 2, STA321MP_BCLK_LRCLK_RATIO);
+      ret = snd_soc_dai_set_fmt(cpu_dai, STA321MP_AUDIO_FORMAT);
+      if (ret < 0)
+         return ret;
+  
+      /* set the CPU system clock */
+      /*
+      ret = snd_soc_dai_set_sysclk(cpu_dai, 0, 0, SND_SOC_CLOCK_IN);
+      if (ret < 0)
+         return ret;
+      */
+      return 0;
+  }
+  
+
 
 /* davinci-evm digital audio interface glue - connects codec <--> CPU */
 static struct snd_soc_dai_link dm6446_evm_dai = {
@@ -429,6 +539,16 @@ static struct snd_soc_dai_link evm_dai_wilink8_bt = {
 			SND_SOC_DAIFMT_DSP_A),
 };
 
+static struct snd_soc_dai_link evm_dai_sta321mp = {
+       .name      = "STA321MP Chip",
+       .stream_name       = "STA321MP",
+       .codec_dai_name    = "sta321mp-audio",
+       .ops       = &evm_sta321mp_ops,
+       .init = evm_sta321mp_init,
+       .dai_fmt   = (SND_SOC_DAIFMT_CBM_CFM | SND_SOC_DAIFMT_I2S |
+       SND_SOC_DAIFMT_IB_IF),
+};
+
 static const struct of_device_id davinci_evm_dt_ids[] = {
 	{
 		.compatible = "ti,da830-evm-audio",
@@ -438,6 +558,10 @@ static const struct of_device_id davinci_evm_dt_ids[] = {
 		.compatible = "ti,wilink8-bt-audio",
 		.data = (void *) &evm_dai_wilink8_bt,
 	},
+        {                                                                                           
+                .compatible = "ti,beaglebone-black-sta321mp",                                       
+                .data = &evm_dai_sta321mp,                                                          
+        },
 	{ /* sentinel */ }
 };
 MODULE_DEVICE_TABLE(of, davinci_evm_dt_ids);

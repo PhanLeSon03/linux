@@ -107,6 +107,7 @@ config SND_SOC_ALL_CODECS
 	select SND_SOC_SSM2602_I2C if I2C
 	select SND_SOC_SSM4567 if I2C
 	select SND_SOC_STA32X if I2C
+	select SND_SOC_STA321MP if I2C
 	select SND_SOC_STA350 if I2C
 	select SND_SOC_STA529 if I2C
 	select SND_SOC_STAC9766 if SND_SOC_AC97_BUS
@@ -640,6 +641,9 @@ config SND_SOC_STA32X
 	tristate "STA326, STA328 and STA329 speaker amplifier"
 	depends on I2C
 	select REGMAP_I2C
+
+config SND_SOC_STA321MP
+	tristate "STA321MP 6 channels microphone"
 
 config SND_SOC_STA350
 	tristate "STA350 speaker amplifier"
