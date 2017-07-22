@@ -124,6 +124,43 @@ static int evm_sta321mp_hw_params(struct snd_pcm_substream *substream,
           return 0;
  }
 
+
+static int pcm5102a_hw_params(struct snd_pcm_substream *substream,
+				 struct snd_pcm_hw_params *params)
+{
+	struct snd_soc_pcm_runtime *rtd = substream->private_data;
+	struct snd_soc_dai *cpu_dai = rtd->cpu_dai;
+	struct snd_soc_codec *codec = rtd->codec;
+          struct snd_soc_card *soc_card = rtd->card;
+	struct platform_device *pdev = to_platform_device(soc_card->dev);
+          unsigned int bclk_freq = snd_soc_params_to_bclk(params);
+	unsigned sysclk = ((struct snd_soc_card_drvdata_davinci *)
+			   snd_soc_card_get_drvdata(soc_card))->sysclk;
+	int ret;
+ 
+	ret = snd_soc_dai_set_clkdiv(cpu_dai, 1, sysclk/bclk_freq);
+	if (ret < 0) {
+		dev_err(&pdev->dev, "can't set CPU DAI clock divider %d\n",
+			ret);
+		return ret;
+	}
+ 
+	printk("PCM5102a hw params\n");
+	printk("sysclk=%d\n", sysclk);
+	printk("bclk_freq=%d\n", bclk_freq);
+	ret = snd_soc_dai_set_sysclk(cpu_dai, 0, sysclk, SND_SOC_CLOCK_OUT);
+	if (ret < 0)
+		return ret;
+ 
+	return ret;
+}
+
+static struct snd_soc_ops pcm5102a_ops = {
+	.startup = evm_startup,
+	.shutdown = evm_shutdown,
+	.hw_params = pcm5102a_hw_params,
+};
+
 static int evm_hw_params(struct snd_pcm_substream *substream,
 			 struct snd_pcm_hw_params *params)
 {
@@ -549,7 +586,23 @@ static struct snd_soc_dai_link evm_dai_sta321mp = {
        SND_SOC_DAIFMT_IB_IF),
 };
 
+static struct snd_soc_dai_link evm_dai_pcm5102a = {
+	.name		= "PCM5102A", //This is chosen arbitrarily.  Can be anything.
+	.stream_name	= "Playback", //This comes from the PCM5102a driver create previously.
+	.codec_dai_name	= "pcm5102a-hifi", //This comes from the PCM5102a driver create previously
+	.ops            = &pcm5102a_ops, //This is a structure that we will create later.
+	.dai_fmt 	= (SND_SOC_DAIFMT_CBS_CFS | SND_SOC_DAIFMT_I2S |
+			   SND_SOC_DAIFMT_IB_NF),
+};
 static const struct of_device_id davinci_evm_dt_ids[] = {
+	{
+		.compatible = "ti,pcm5102a-evm-audio",
+		.data = &evm_dai_pcm5102a,
+	},
+        {                                                                                           
+                .compatible = "ti,beaglebone-black-sta321mp",                                       
+                .data = &evm_dai_sta321mp,                                                          
+        },
 	{
 		.compatible = "ti,da830-evm-audio",
 		.data = (void *) &evm_dai_tlv320aic3x,
@@ -558,10 +611,6 @@ static const struct of_device_id davinci_evm_dt_ids[] = {
 		.compatible = "ti,wilink8-bt-audio",
 		.data = (void *) &evm_dai_wilink8_bt,
 	},
-        {                                                                                           
-                .compatible = "ti,beaglebone-black-sta321mp",                                       
-                .data = &evm_dai_sta321mp,                                                          
-        },
 	{ /* sentinel */ }
 };
 MODULE_DEVICE_TABLE(of, davinci_evm_dt_ids);

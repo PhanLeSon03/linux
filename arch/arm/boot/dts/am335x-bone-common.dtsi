@@ -19,8 +19,9 @@
 	};
 
 	leds {
-		pinctrl-names = "default";
-		pinctrl-0 = <&user_leds_s0>;
+		pinctrl-names = "default", "sleep";
+		pinctrl-0 = <&user_leds_default>;
+		pinctrl-1 = <&user_leds_sleep>;
 
 		compatible = "gpio-leds";
 
@@ -62,12 +63,21 @@
 };
 
 &am33xx_pinmux {
-	user_leds_s0: user_leds_s0 {
+	user_leds_default: user_leds_default {
 		pinctrl-single,pins = <
 			AM33XX_IOPAD(0x854, PIN_OUTPUT_PULLDOWN | MUX_MODE7)	/* gpmc_a5.gpio1_21 */
 			AM33XX_IOPAD(0x858, PIN_OUTPUT_PULLUP | MUX_MODE7)	/* gpmc_a6.gpio1_22 */
 			AM33XX_IOPAD(0x85c, PIN_OUTPUT_PULLDOWN | MUX_MODE7)	/* gpmc_a7.gpio1_23 */
 			AM33XX_IOPAD(0x860, PIN_OUTPUT_PULLUP | MUX_MODE7)	/* gpmc_a8.gpio1_24 */
+		>;
+	};
+
+	user_leds_sleep: user_leds_sleep {
+		pinctrl-single,pins = <
+			AM33XX_IOPAD(0x854, PIN_INPUT_PULLDOWN | MUX_MODE7)	/* gpmc_a5.gpio1_21 */
+			AM33XX_IOPAD(0x858, PIN_INPUT_PULLDOWN | MUX_MODE7)	/* gpmc_a6.gpio1_22 */
+			AM33XX_IOPAD(0x85c, PIN_INPUT_PULLDOWN | MUX_MODE7)	/* gpmc_a7.gpio1_23 */
+			AM33XX_IOPAD(0x860, PIN_INPUT_PULLDOWN | MUX_MODE7)	/* gpmc_a8.gpio1_24 */
 		>;
 	};
 
@@ -174,21 +184,20 @@
           /* sta321mp cape */
           mcasp0_pins_sta321mp: mcasp0_pins_sta321mp {
               pinctrl-single,pins = <
-                0x1a4 0x20  /* mcasp0_fsx,        MODE0 | INPUT */
-                0x078 0x26  /* mcasp0_aclkx       MODE6 | INPUT */
-                0x198 0x20  /* mcasp0_axr0,       MODE0 | INPUT */
-                0x0d0 0x24  /* mcasp0_axr2        MODE4 | INPUT */
-                0x1ac 0x22  /* mcasp0_axr3,       MODE2 | INPUT */
+                0x1a4 0x20  /* mcasp0_fsr,        MODE0 | INPUT P9_27   GPIO3_19 */
+                0x1a0 0x26  /* mcasp0_aclkr,      MODE6 | INPUT P9_12   gpio1_28 */
+                0x198 0x20  /* mcasp0_axr0,       MODE0 | INPUT P9_30   GPIO3_16 */
+                0x19c 0x24  /* mcasp0_axr2        MODE4 | INPUT P8_35   GPIO0_8  */
+                0x1ac 0x22  /* mcasp0_axr3,       MODE2 | INPUT P9_25   GPIO3_21*/
               >;
             };
-  
+
          i2c1_pins: pinmux_i2c1_pins {
               pinctrl-single,pins = <
                 0x158 0x72 /* spi0_d1.i2c1_sda, SLEWCTRL_SLOW | INPUT_PULLUP | MODE2 */
                 0x15c 0x72 /* spi0_cs0.i2c1_scl, SLEWCTRL_SLOW | INPUT_PULLUP | MODE2 */
               >;
          };
-
 };
 
 &uart0 {
@@ -335,7 +344,7 @@
 			/* VDD_MPU voltage limits 0.95V - 1.26V with +/-4% tolerance */
 			regulator-name = "vdd_mpu";
 			regulator-min-microvolt = <925000>;
-			regulator-max-microvolt = <1325000>;
+			regulator-max-microvolt = <1351500>;
 			regulator-boot-on;
 			regulator-always-on;
 		};
@@ -412,7 +421,13 @@
 };
 
 &rtc {
+	clocks = <&clk_32768_ck>, <&clkdiv32k_ick>;
+	clock-names = "ext-clk", "int-clk";
 	system-power-controller;
+};
+
+&sgx {
+	status = "okay";
 };
 
 /* the cape manager */
