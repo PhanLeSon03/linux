@@ -9,7 +9,7 @@
 
 #include "am33xx.dtsi"
 #include "am335x-bone-common.dtsi"
-/* #include "am33xx-overlay-edma-fix.dtsi" */
+#include "am33xx-overlay-edma-fix.dtsi" 
 #include <dt-bindings/display/tda998x.h>
 #include "am335x-boneblack-wl1835.dtsi"
 /* #include "am335x-bone-jtag.dtsi" */
@@ -22,7 +22,9 @@
  * blacklist uio_pruss
  */
 
-#include "am33xx-pruss-rproc.dtsi"
+
+/* #include "am33xx-pruss-rproc.dtsi" */
+
 
 /*
  * /etc/modprobe.d/pruss-blacklist.conf
@@ -65,12 +67,7 @@
 	status = "okay";
 };
 
-&cpu0_opp_table {
-	//osd335x
-	opp50@300000000 {
-		status = "disabled";
-	};
-};
+
 
 &am33xx_pinmux {
 	nxp_hdmi_bonelt_pins: nxp_hdmi_bonelt_pins {
